@@ -89,87 +89,87 @@ namespace OM { namespace mon {
     ContinuousType Continuous;
     
     ContinuousType::~ContinuousType (){
-        // free memory
-        toReport.clear();
-        for( auto it = registered.begin(); it != registered.end(); ++it )
-            delete it->second;
+        // // free memory
+        // toReport.clear();
+        // for( auto it = registered.begin(); it != registered.end(); ++it )
+        //     delete it->second;
    }
    
     /* Initialise: enable outputs registered and requested in XML.
      * Search for Continuous::registerCallback to see outputs available. */
     void ContinuousType::init (const scnXml::Monitoring& monitoring, bool isCheckpoint) {
-	const scnXml::Monitoring::ContinuousOptional& ctsOpt = monitoring.getContinuous();
-	if( ctsOpt.present() == false ) {
-	    ctsPeriod = SimTime::zero();
-	    return;
-	}
-	try{
-            //NOTE: if changing XSD, this should not have a default unit:
-            ctsPeriod = UnitParse::readShortDuration( ctsOpt.get().getPeriod(), UnitParse::STEPS );
-            if( ctsPeriod < SimTime::oneTS() )
-                throw util::format_error("must be >= 1 time step");
-        }catch( const util::format_error& e ){
-            throw xml_scenario_error( string("monitoring/continuous/period: ").append(e.message()) );
-        }
+	// const scnXml::Monitoring::ContinuousOptional& ctsOpt = monitoring.getContinuous();
+	// if( ctsOpt.present() == false ) {
+	//     ctsPeriod = SimTime::zero();
+	//     return;
+	// }
+	// try{
+ //            //NOTE: if changing XSD, this should not have a default unit:
+ //            ctsPeriod = UnitParse::readShortDuration( ctsOpt.get().getPeriod(), UnitParse::STEPS );
+ //            if( ctsPeriod < SimTime::oneTS() )
+ //                throw util::format_error("must be >= 1 time step");
+ //        }catch( const util::format_error& e ){
+ //            throw xml_scenario_error( string("monitoring/continuous/period: ").append(e.message()) );
+ //        }
 	
-        if( ctsOpt.get().getDuringInit().present() )
-            duringInit = ctsOpt.get().getDuringInit().get();
+ //        if( ctsOpt.get().getDuringInit().present() )
+ //            duringInit = ctsOpt.get().getDuringInit().get();
         
-        cts_filename = util::CommandLine::getCtsoutName();
+ //        cts_filename = util::CommandLine::getCtsoutName();
         
-	// This locale ensures uniform formatting of nans and infs on all platforms.
-	locale old_locale;
-	locale nfn_put_locale(old_locale, new boost::math::nonfinite_num_put<char>);
-	ctsOStream.imbue( nfn_put_locale );
-	ctsOStream.width (0);
+	// // This locale ensures uniform formatting of nans and infs on all platforms.
+	// locale old_locale;
+	// locale nfn_put_locale(old_locale, new boost::math::nonfinite_num_put<char>);
+	// ctsOStream.imbue( nfn_put_locale );
+	// ctsOStream.width (0);
 	
-	if( isCheckpoint ){
-	    scnXml::OptionSet::OptionSequence sOSeq = ctsOpt.get().getOption();
-	    for(scnXml::OptionSet::OptionConstIterator it = sOSeq.begin(); it != sOSeq.end(); ++it) {
-		auto reg_it = registered.find( it->getName() );
-		if( reg_it == registered.end() )
-		    throw xml_scenario_error( (boost::format("monitoring.continuous: no output \"%1%\"") %it->getName() ).str() );
-		if( it->getValue() ){
-		    toReport.push_back( reg_it->second );
-		}
-	    }
+	// if( isCheckpoint ){
+	//     scnXml::OptionSet::OptionSequence sOSeq = ctsOpt.get().getOption();
+	//     for(scnXml::OptionSet::OptionConstIterator it = sOSeq.begin(); it != sOSeq.end(); ++it) {
+	// 	auto reg_it = registered.find( it->getName() );
+	// 	if( reg_it == registered.end() )
+	// 	    throw xml_scenario_error( (boost::format("monitoring.continuous: no output \"%1%\"") %it->getName() ).str() );
+	// 	if( it->getValue() ){
+	// 	    toReport.push_back( reg_it->second );
+	// 	}
+	//     }
 	    
-	    // When loading a check-point, we resume reporting to this file.
-	    // Use "ate" mode and seek to desired pos.
-	    ctsOStream.open (cts_filename.c_str(), ios::binary|ios::ate|ios::in|ios::out );
-	    if( ctsOStream.fail() )
-		throw util::checkpoint_error ("Continuous: resume error (no file)");
-	    ctsOStream.seekp( 0, ios_base::beg );
-	    streamStart = ctsOStream.tellp();
-	    // we set position later, in staticCheckpoint
-	}else{
-	    ctsOStream.open( cts_filename.c_str(), ios::binary|ios::out );
-	    streamStart = ctsOStream.tellp();
-	    ctsOStream << "##\t##" << endl;	// live-graph needs a deliminator specifier when it's not a comma
+	//     // When loading a check-point, we resume reporting to this file.
+	//     // Use "ate" mode and seek to desired pos.
+	//     ctsOStream.open (cts_filename.c_str(), ios::binary|ios::ate|ios::in|ios::out );
+	//     if( ctsOStream.fail() )
+	// 	throw util::checkpoint_error ("Continuous: resume error (no file)");
+	//     ctsOStream.seekp( 0, ios_base::beg );
+	//     streamStart = ctsOStream.tellp();
+	//     // we set position later, in staticCheckpoint
+	// }else{
+	//     ctsOStream.open( cts_filename.c_str(), ios::binary|ios::out );
+	//     streamStart = ctsOStream.tellp();
+	//     ctsOStream << "##\t##" << endl;	// live-graph needs a deliminator specifier when it's not a comma
 	    
-	    if( duringInit )
-                ctsOStream << "simulation time\t";
-	    ctsOStream << "timestep";   //TODO: change to days or remove or leave?
-	    scnXml::OptionSet::OptionSequence sOSeq = ctsOpt.get().getOption();
-	    for(scnXml::OptionSet::OptionConstIterator it = sOSeq.begin(); it != sOSeq.end(); ++it) {
-		auto reg_it = registered.find( it->getName() );
-		if( reg_it == registered.end() )
-		    throw xml_scenario_error( (boost::format("monitoring.continuous: no output \"%1%\"") %it->getName() ).str() );
-		if( it->getValue() ){
-		    ctsOStream << reg_it->second->titles;
-		    toReport.push_back( reg_it->second );
-		}
-	    }
-	    ctsOStream << mon::lineEnd << flush;
-	    streamOff = ctsOStream.tellp() - streamStart;
-	}
+	//     if( duringInit )
+ //                ctsOStream << "simulation time\t";
+	//     ctsOStream << "timestep";   //TODO: change to days or remove or leave?
+	//     scnXml::OptionSet::OptionSequence sOSeq = ctsOpt.get().getOption();
+	//     for(scnXml::OptionSet::OptionConstIterator it = sOSeq.begin(); it != sOSeq.end(); ++it) {
+	// 	auto reg_it = registered.find( it->getName() );
+	// 	if( reg_it == registered.end() )
+	// 	    throw xml_scenario_error( (boost::format("monitoring.continuous: no output \"%1%\"") %it->getName() ).str() );
+	// 	if( it->getValue() ){
+	// 	    ctsOStream << reg_it->second->titles;
+	// 	    toReport.push_back( reg_it->second );
+	// 	}
+	//     }
+	//     ctsOStream << mon::lineEnd << flush;
+	//     streamOff = ctsOStream.tellp() - streamStart;
+	// }
     }
 
     void ContinuousType::checkpoint (ostream& stream){
-        if( ctsPeriod == SimTime::zero() )
-            return;	// output disabled
+ //        if( ctsPeriod == SimTime::zero() )
+ //            return;	// output disabled
 	
-	streamOff & stream;
+	// streamOff & stream;
     }
     void ContinuousType::checkpoint (istream& stream){
         if( ctsPeriod == SimTime::zero() )
@@ -201,31 +201,31 @@ namespace OM { namespace mon {
     }
     
     void ContinuousType::update (const Population& population){
-        if( ctsPeriod == SimTime::zero() )
-            return;	// output disabled
-        if( !duringInit ){
-            if( sim::intervTime() < SimTime::zero()
-                || mod_nn(sim::intervTime(), ctsPeriod) != SimTime::zero() )
-                return;
-        } else {
-            if( mod_nn(sim::now(), ctsPeriod) != SimTime::zero() )
-                return;
-            ctsOStream << sim::now().inSteps() << '\t';
-        }
+ //        if( ctsPeriod == SimTime::zero() )
+ //            return;	// output disabled
+ //        if( !duringInit ){
+ //            if( sim::intervTime() < SimTime::zero()
+ //                || mod_nn(sim::intervTime(), ctsPeriod) != SimTime::zero() )
+ //                return;
+ //        } else {
+ //            if( mod_nn(sim::now(), ctsPeriod) != SimTime::zero() )
+ //                return;
+ //            ctsOStream << sim::now().inSteps() << '\t';
+ //        }
 	
-        if( duringInit && sim::intervTime() < SimTime::zero() ){
-            ctsOStream << "nan";
-        }else{
-            // NOTE: we could switch this to output dates, but (1) it would be
-            // breaking change and (2) it may be harder to use.
-            ctsOStream << sim::intervTime().inSteps();
-        }
-	for( size_t i = 0; i < toReport.size(); ++i )
-	    toReport[i]->call( population, ctsOStream );
-	// We must flush often to avoid temporarily outputting partial lines
-	// (resulting in incorrect real-time graphs).
-	ctsOStream << mon::lineEnd << flush;
+ //        if( duringInit && sim::intervTime() < SimTime::zero() ){
+ //            ctsOStream << "nan";
+ //        }else{
+ //            // NOTE: we could switch this to output dates, but (1) it would be
+ //            // breaking change and (2) it may be harder to use.
+ //            ctsOStream << sim::intervTime().inSteps();
+ //        }
+	// for( size_t i = 0; i < toReport.size(); ++i )
+	//     toReport[i]->call( population, ctsOStream );
+	// // We must flush often to avoid temporarily outputting partial lines
+	// // (resulting in incorrect real-time graphs).
+	// //ctsOStream << mon::lineEnd << flush;
 	
-	streamOff = ctsOStream.tellp() - streamStart;
+	// streamOff = ctsOStream.tellp() - streamStart;
     }
 } }
